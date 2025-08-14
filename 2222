@@ -1,0 +1,104 @@
+--// WW2 Plane Bomb Aim Tracker - Arceus X Neo Visual Only
+--// Made to comply with Roblox rules (no gameplay changes)
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- GUI Setup
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AimTrackerUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 100, 0, 40)
+ToggleButton.Position = UDim2.new(0.5, -50, 0, 10)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 215, 0)
+ToggleButton.TextSize = 20
+ToggleButton.Font = Enum.Font.Garamond -- Roman style
+ToggleButton.Text = "ON"
+ToggleButton.Parent = ScreenGui
+ToggleButton.Active = true
+ToggleButton.Draggable = true
+
+-- Toggle State
+local isOn = true
+
+-- Beam + Circle Setup
+local Beam = Instance.new("Part")
+Beam.Anchored = true
+Beam.CanCollide = false
+Beam.Material = Enum.Material.Neon
+Beam.Color = Color3.fromRGB(255, 0, 0)
+Beam.Size = Vector3.new(0.4, 0.4, 1) -- Thicker beam
+Beam.Transparency = 0.3
+Beam.Parent = workspace
+
+local Circle = Instance.new("Part")
+Circle.Anchored = true
+Circle.CanCollide = false
+Circle.Shape = Enum.PartType.Cylinder
+Circle.Size = Vector3.new(14, 0.2, 14) -- 14x14 fixed size
+Circle.Material = Enum.Material.Neon
+Circle.Color = Color3.fromRGB(255, 0, 0)
+Circle.Transparency = 0.5
+Circle.Orientation = Vector3.new(90, 0, 0)
+Circle.Parent = workspace
+
+-- Smooth toggle animation
+local TweenService = game:GetService("TweenService")
+local function animateToggle()
+    local goal = {}
+    if isOn then
+        goal.Rotation = 0
+    else
+        goal.Rotation = 180
+    end
+    TweenService:Create(ToggleButton, TweenInfo.new(0.3, Enum.EasingStyle.Sine), goal):Play()
+end
+
+-- Button Click Event
+ToggleButton.MouseButton1Click:Connect(function()
+    isOn = not isOn
+    ToggleButton.Text = isOn and "ON" or "OFF"
+    animateToggle()
+end)
+
+-- Raycast loop
+RunService.RenderStepped:Connect(function()
+    if not isOn then
+        Beam.Transparency = 1
+        Circle.Transparency = 1
+        return
+    end
+
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+        if char.Humanoid.Sit then
+            local root = char.HumanoidRootPart
+            local forwardPos = root.Position + (root.CFrame.LookVector * 12) -- 12 studs forward
+
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterDescendantsInstances = {char}
+            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+            local rayResult = workspace:Raycast(forwardPos, root.CFrame.LookVector * 500, raycastParams)
+
+            if rayResult then
+                local dist = (forwardPos - rayResult.Position).Magnitude
+                Beam.Size = Vector3.new(0.4, 0.4, dist)
+                Beam.CFrame = CFrame.new(forwardPos, rayResult.Position) * CFrame.new(0, 0, -dist/2)
+                Beam.Transparency = 0.3
+
+                Circle.Position = rayResult.Position + Vector3.new(0, 0.1, 0)
+                Circle.Transparency = 0.5
+            end
+        else
+            Beam.Transparency = 1
+            Circle.Transparency = 1
+        end
+    end
+end)
