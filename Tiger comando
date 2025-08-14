@@ -1,0 +1,123 @@
+-- SETTINGS
+local beamColor = Color3.fromRGB(255, 0, 0) -- Beam color
+local beamThickness = 0.3
+local circleDiameter = 14 -- Fixed hit circle size (like a car/tank)
+
+-- VARIABLES
+local player = game.Players.LocalPlayer
+local runService = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
+local enabled = false
+
+-- UI CREATION
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 140, 0, 50)
+toggleBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+toggleBtn.BorderColor3 = Color3.fromRGB(212, 175, 55)
+toggleBtn.BorderSizePixel = 3
+toggleBtn.Text = "OFF"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.Garamond
+toggleBtn.TextScaled = true
+toggleBtn.Parent = gui
+
+-- Draggable
+local dragging, dragStart, startPos
+toggleBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = toggleBtn.Position
+	end
+end)
+toggleBtn.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		toggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+uis.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+-- Beam & Circle
+local beamPart = Instance.new("Part")
+beamPart.Anchored = true
+beamPart.CanCollide = false
+beamPart.Transparency = 1
+beamPart.Parent = workspace
+
+local a0 = Instance.new("Attachment", beamPart)
+local a1 = Instance.new("Attachment", beamPart)
+
+local beam = Instance.new("Beam")
+beam.Attachment0 = a0
+beam.Attachment1 = a1
+beam.Color = ColorSequence.new(beamColor)
+beam.Width0 = beamThickness
+beam.Width1 = beamThickness
+beam.Transparency = NumberSequence.new(0)
+beam.Enabled = false
+beam.Parent = beamPart
+
+local circlePart = Instance.new("Part")
+circlePart.Anchored = true
+circlePart.CanCollide = false
+circlePart.Shape = Enum.PartType.Cylinder
+circlePart.Size = Vector3.new(0.2, circleDiameter, circleDiameter)
+circlePart.Color = beamColor
+circlePart.Transparency = 1
+circlePart.Orientation = Vector3.new(90, 0, 0)
+circlePart.Parent = workspace
+
+-- Toggle function
+local function setEnabled(state)
+	enabled = state
+	beam.Enabled = state
+	circlePart.Transparency = state and 0.5 or 1
+
+	if state then
+		toggleBtn.Text = "ON"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(34, 139, 34)
+	else
+		toggleBtn.Text = "OFF"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	end
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+	setEnabled(not enabled)
+end)
+
+-- Update loop
+runService.RenderStepped:Connect(function()
+	if not enabled then return end
+	if not player.Character then return end
+
+	local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if not (seat and humanoid.Sit) then
+		beam.Enabled = false
+		circlePart.Transparency = 1
+		return
+	end
+
+	-- Ray origin: 10 studs ahead of seat
+	local originCFrame = seat.CFrame * CFrame.new(0, 1, -10)
+	local originPos = originCFrame.Position
+	local direction = seat.CFrame.LookVector * 500
+
+	local ray = Ray.new(originPos, direction)
+	local hit, pos = workspace:FindPartOnRay(ray, player.Character)
+
+	beam.Enabled = true
+	a0.WorldPosition = originPos
+	a1.WorldPosition = pos or (originPos + direction)
+	circlePart.Position = (pos or (originPos + direction)) + Vector3.new(0, 0.1, 0)
+	circlePart.Transparency = 0.5
+end)
