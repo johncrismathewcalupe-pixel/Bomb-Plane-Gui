@@ -1,0 +1,86 @@
+-- LocalScript for WW2 plane bomb aimer (Obstacle Aware, Optimized)
+
+local player = game.Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+
+-- === GUI ===
+local gui = Instance.new("ScreenGui")
+gui.Name = "BombAimGUI"
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local toggleBtn = Instance.new("ImageButton")
+toggleBtn.Size = UDim2.new(0, 200, 0, 80)
+toggleBtn.Position = UDim2.new(0.7, 0, 0.8, 0)
+toggleBtn.BackgroundTransparency = 1
+toggleBtn.Image = "https://raw.githubusercontent.com/johncrismathewcalupe-pixel/Plane-Bomb-Tracking-/refs/heads/main/Picsart_25-08-14_18-17-59-904.png"
+toggleBtn.Parent = gui
+
+local onImage = "https://raw.githubusercontent.com/johncrismathewcalupe-pixel/Plane-Bomb-Tracking-/refs/heads/main/Picsart_25-08-14_18-17-59-904.png"
+local offImage = "https://raw.githubusercontent.com/johncrismathewcalupe-pixel/Plane-Bomb-Tracking-/refs/heads/main/Picsart_25-08-14_18-11-59-047.png"
+
+-- === VISUAL PARTS ===
+local laser = Instance.new("Part")
+laser.Anchored = true
+laser.CanCollide = false
+laser.Color = Color3.fromRGB(255, 0, 0)
+laser.Material = Enum.Material.Neon
+laser.Size = Vector3.new(0.15, 0.15, 0.15)
+laser.Parent = workspace
+
+local circle = Instance.new("Part")
+circle.Anchored = true
+circle.CanCollide = false
+circle.Shape = Enum.PartType.Cylinder
+circle.Color = Color3.fromRGB(255, 0, 0)
+circle.Material = Enum.Material.Neon
+circle.Transparency = 0.5
+circle.Size = Vector3.new(4, 0.1, 4)
+circle.Orientation = Vector3.new(90, 0, 0)
+circle.Parent = workspace
+
+-- === CONTROL ===
+local beamEnabled = true
+local RunService = game:GetService("RunService")
+local RaycastParams = RaycastParams.new()
+RaycastParams.FilterDescendantsInstances = {char}
+RaycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+-- Function to update visuals
+local function updateBeam()
+    local forwardOrigin = hrp.Position + (hrp.CFrame.LookVector * 5)
+    local rayResult = workspace:Raycast(forwardOrigin, Vector3.new(0, -1000, 0), RaycastParams)
+
+    if rayResult then
+        local hitPos = rayResult.Position
+        local dist = (hitPos - forwardOrigin).Magnitude
+        laser.Size = Vector3.new(0.15, 0.15, dist)
+        laser.CFrame = CFrame.new(forwardOrigin, hitPos) * CFrame.new(0, 0, -dist / 2)
+        circle.Position = hitPos + Vector3.new(0, 0.05, 0)
+    end
+end
+
+-- Connection variable (so we can stop it)
+local connection
+
+-- Toggle button click
+toggleBtn.MouseButton1Click:Connect(function()
+    beamEnabled = not beamEnabled
+    toggleBtn.Image = beamEnabled and onImage or offImage
+    laser.Transparency = beamEnabled and 0 or 1
+    circle.Transparency = beamEnabled and 0.5 or 1
+
+    if beamEnabled then
+        -- Start updating
+        connection = RunService.RenderStepped:Connect(updateBeam)
+    else
+        -- Stop updating
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+    end
+end)
+
+-- Start active by default
+connection = RunService.RenderStepped:Connect(updateBeam)
