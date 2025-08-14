@@ -1,0 +1,161 @@
+--// WW2 Plane Bomb Aim Tracker (Visual Only)
+--// Works only while sitting | Thick ray + fixed circle | 7 studs forward
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- UI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AimTrackerUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 100, 0, 40)
+toggleButton.Position = UDim2.new(0.5, -50, 0, 10)
+toggleButton.AnchorPoint = Vector2.new(0.5, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.Garamond
+toggleButton.TextSize = 20
+toggleButton.Text = "OFF"
+toggleButton.Parent = screenGui
+
+-- Draggable UI
+local dragging, dragInput, dragStart, startPos
+toggleButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = toggleButton.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if dragging and dragInput then
+		local delta = dragInput.Position - dragStart
+		toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+-- Ray + Circle Setup
+local enabled = false
+local beamPart, beamAttachment0, beamAttachment1, beam
+local circlePart
+
+local function createVisuals()
+	-- Beam Part
+	beamPart = Instance.new("Part")
+	beamPart.Anchored = true
+	beamPart.CanCollide = false
+	beamPart.Transparency = 1
+	beamPart.Size = Vector3.new(0.2, 0.2, 0.2)
+	beamPart.Parent = workspace
+
+	beamAttachment0 = Instance.new("Attachment", beamPart)
+
+	-- Hit Attachment
+	local hitPart = Instance.new("Part")
+	hitPart.Anchored = true
+	hitPart.CanCollide = false
+	hitPart.Transparency = 1
+	hitPart.Size = Vector3.new(0.2, 0.2, 0.2)
+	hitPart.Parent = workspace
+	beamAttachment1 = Instance.new("Attachment", hitPart)
+
+	-- Beam
+	beam = Instance.new("Beam")
+	beam.Attachment0 = beamAttachment0
+	beam.Attachment1 = beamAttachment1
+	beam.FaceCamera = true
+	beam.Width0 = 0.4 -- Thicker beam
+	beam.Width1 = 0.4
+	beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+	beam.Transparency = NumberSequence.new(0.3)
+	beam.Parent = beamPart
+
+	-- Circle
+	circlePart = Instance.new("Part")
+	circlePart.Anchored = true
+	circlePart.CanCollide = false
+	circlePart.Size = Vector3.new(10, 0.1, 10) -- fixed car/tank size
+	circlePart.Shape = Enum.PartType.Cylinder
+	circlePart.Color = Color3.fromRGB(255, 0, 0)
+	circlePart.Material = Enum.Material.ForceField
+	circlePart.Transparency = 0.5
+	circlePart.Parent = workspace
+end
+
+local function removeVisuals()
+	if beamPart then beamPart:Destroy() beamPart = nil end
+	if circlePart then circlePart:Destroy() circlePart = nil end
+end
+
+-- Toggle Button Function
+local function toggle()
+	enabled = not enabled
+
+	-- Animate Button Rotation
+	local tween = TweenService:Create(toggleButton, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		Rotation = enabled and 180 or 0
+	})
+	tween:Play()
+
+	toggleButton.Text = enabled and "ON" or "OFF"
+
+	if enabled then
+		createVisuals()
+	else
+		removeVisuals()
+	end
+end
+
+toggleButton.MouseButton1Click:Connect(toggle)
+
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+	if enabled and beamPart and circlePart then
+		local char = LocalPlayer.Character
+		if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+			local humanoid = char.Humanoid
+			local hrp = char.HumanoidRootPart
+
+			if humanoid.Sit then
+				local startPos = hrp.Position + (hrp.CFrame.LookVector * 7)
+				local rayDirection = hrp.CFrame.LookVector * 500
+				local rayParams = RaycastParams.new()
+				rayParams.FilterDescendantsInstances = {char}
+				rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+				local result = workspace:Raycast(startPos, rayDirection, rayParams)
+
+				beamPart.Position = startPos
+				if result then
+					beamAttachment1.Parent.Position = result.Position
+					circlePart.Position = Vector3.new(result.Position.X, result.Position.Y + 0.05, result.Position.Z)
+					circlePart.Orientation = Vector3.new(0, 0, 90)
+				else
+					beamAttachment1.Parent.Position = startPos + rayDirection
+					circlePart.Position = startPos + rayDirection
+					circlePart.Orientation = Vector3.new(0, 0, 90)
+				end
+			else
+				removeVisuals()
+			end
+		end
+	end
+end)
